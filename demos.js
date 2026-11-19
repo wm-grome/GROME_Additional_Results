@@ -75,7 +75,43 @@ export const comparisons = [
               "thumbnail": "assets/comparison-frames/case5-grome-selected-12p5s.jpg"
             }
           ]
-        }
+        },
+        "conditions": {
+          "sana": {
+            "prompt": "The lion stands majestically, its mane rustling slightly in the gentle breeze. Occasionally, it lifts a paw and moves with a slow, deliberate stride across the dry grassland.",
+            "camera": "case5-sana"
+          },
+          "grome": {
+            "prompt": "The lion stands majestically, its mane rustling slightly in the gentle breeze. Occasionally, it lifts a paw and moves with a slow, deliberate stride across the dry grassland.",
+            "camera": "case5-sana"
+          },
+          "solar": {
+            "prompt": "The lion stands majestically, its mane rustling slightly in the gentle breeze. Occasionally, it lifts a paw and moves with a slow, deliberate stride across the dry grassland.",
+            "camera": "case5-solar"
+          },
+          "solarGrome": {
+            "prompt": "The lion stands majestically, its mane rustling slightly in the gentle breeze. Occasionally, it lifts a paw and moves with a slow, deliberate stride across the dry grassland.",
+            "camera": "case5-solar-grome"
+          }
+        },
+        "solar": "assets/solar-dynamic-013-baseline.mp4",
+        "durations": {
+          "sana": 18,
+          "grome": 18,
+          "solar": 18.166666666666668,
+          "solarGrome": 18.166666666666668
+        },
+        "cameraBounds": {
+          "x": [
+            0,
+            2.0000002
+          ],
+          "z": [
+            -3.4000006,
+            0
+          ]
+        },
+        "solarGrome": "assets/solar-dynamic-013-grome.mp4"
       },
       {
         "id": "case6",
@@ -148,7 +184,44 @@ export const comparisons = [
               "thumbnail": "assets/comparison-frames/case6-grome-selected-17s.jpg"
             }
           ]
-        }
+        },
+        "solar": "assets/solar-dynamic-001-translation-revisit2-baseline.mp4",
+        "solarGrome": "assets/solar-dynamic-001-translation-revisit2-grome.mp4",
+        "durations": {
+          "sana": 18,
+          "grome": 18,
+          "solar": 18.166666666666668,
+          "solarGrome": 18.166666666666668
+        },
+        "conditions": {
+          "sana": {
+            "prompt": "An elephant on a grassy landscape.",
+            "camera": "case6-sana"
+          },
+          "grome": {
+            "prompt": "An elephant on a grassy landscape.",
+            "camera": "case6-sana"
+          },
+          "solar": {
+            "prompt": "An elephant on a grassy landscape.",
+            "camera": "case6-solar-revisit2"
+          },
+          "solarGrome": {
+            "prompt": "An elephant on a grassy landscape.",
+            "camera": "case6-solar-grome-revisit2"
+          }
+        },
+        "cameraBounds": {
+          "x": [
+            0,
+            2.8000004
+          ],
+          "z": [
+            -2.6000004,
+            0
+          ]
+        },
+        "displayPrompt": "An elephant on a grassy landscape."
       },
       {
         "id": "case7",
@@ -220,6 +293,42 @@ export const comparisons = [
               "state": "consistent",
               "thumbnail": "assets/comparison-frames/case7-grome-selected-12s.jpg"
             }
+          ]
+        },
+        "solar": "assets/solar-dynamic-016-baseline.mp4",
+        "solarGrome": "assets/solar-dynamic-016-grome.mp4",
+        "durations": {
+          "sana": 18,
+          "grome": 18,
+          "solar": 18.166666666666668,
+          "solarGrome": 18.166666666666668
+        },
+        "conditions": {
+          "sana": {
+            "prompt": "The tiger prowls forward cautiously, its muscles tensed and tail flicking slightly, surveying its surroundings with focused intent.",
+            "camera": "case7-sana"
+          },
+          "grome": {
+            "prompt": "The tiger prowls forward cautiously, its muscles tensed and tail flicking slightly, surveying its surroundings with focused intent.",
+            "camera": "case7-sana"
+          },
+          "solar": {
+            "prompt": "The tiger prowls forward cautiously, its muscles tensed and tail flicking slightly, surveying its surroundings with focused intent.",
+            "camera": "case7-solar"
+          },
+          "solarGrome": {
+            "prompt": "The tiger prowls forward cautiously, its muscles tensed and tail flicking slightly, surveying its surroundings with focused intent.",
+            "camera": "case7-solar"
+          }
+        },
+        "cameraBounds": {
+          "x": [
+            0,
+            2.0000002
+          ],
+          "z": [
+            -3.4000006,
+            0
           ]
         }
       }
@@ -382,6 +491,48 @@ export const comparisons = [
             }
           ]
         }
+      }
+    ]
+  }
+];
+
+export const solarComparisons = [
+  {
+    "id": "additional-solar-examples",
+    "cases": [
+      {
+        "id": "solar-legacy-case1",
+        "title": "Example 7",
+        "models": [
+          {
+            "key": "solar",
+            "label": "Solar-WM"
+          },
+          {
+            "key": "solarGrome",
+            "label": "GROME (based on Solar-WM)"
+          }
+        ],
+        "duration": 18.166666666666668,
+        "durations": {
+          "solar": 18.166666666666668,
+          "solarGrome": 18.166666666666668
+        },
+        "markers": {},
+        "frames": {},
+        "conditions": {
+          "solar": {
+            "prompt": "The lion stands majestically, its mane rustling slightly in the gentle breeze. Occasionally, it lifts a paw and moves with a slow, deliberate stride across the dry grassland.",
+            "camera": "solar-legacy-lion"
+          },
+          "solarGrome": {
+            "prompt": "The lion stands majestically, its mane rustling slightly in the gentle breeze. Occasionally, it lifts a paw and moves with a slow, deliberate stride across the dry grassland.",
+            "camera": "solar-legacy-lion"
+          }
+        },
+        "displayPrompt": "The lion stands majestically, its mane rustling slightly in the gentle breeze. Occasionally, it lifts a paw and moves with a slow, deliberate stride across the dry grassland.",
+        "solar": "assets/solar-legacy-lion-baseline.mp4",
+        "solarGrome": "assets/solar-legacy-lion-grome.mp4"
       }
     ]
   }

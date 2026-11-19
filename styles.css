@@ -106,3 +106,58 @@ footer{border-top:1px solid #d9dce0;color:#777;font-size:12px;padding:20px 0 36p
 .frame-preview:hover{background:#fff;opacity:.92}
 .frame-preview.active,.frame-preview:focus-visible{outline:1px solid var(--frame-color);outline-offset:2px}
 @media(max-width:650px){.comparison-frames{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.frame-preview{border-width:2px}.frame-preview .frame-time{font-size:10px}}
+
+/* Four-model comparisons and the corresponding input camera trajectories. */
+body{max-width:1600px}
+.pair--four{grid-template-columns:repeat(4,minmax(260px,1fr));overflow-x:auto;padding-bottom:8px;gap:16px}
+.pair--four figure{padding:0 2px}
+.pair--four video{aspect-ratio:7/4}
+.timeline-marker.marker-comparison{--marker-color:#2267b5;color:var(--marker-color)}
+.frame-preview.marker-comparison{--frame-color:#2267b5}
+.pose-heading{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:13px}
+.pose-time{font-size:11px;font-variant-numeric:tabular-nums;color:#65696e}
+.camera-pose svg{display:block;width:100%;height:auto;margin:4px 0}
+.pose-grid{stroke:#e1e3e5;stroke-width:1}
+.pose-tick,.pose-axis{font:12px Arial,Helvetica,sans-serif;fill:#64696f}
+.pose-path{stroke-width:2.5;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.pose-progress{stroke:#2267b5;stroke-width:3;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.pose-start{fill:white;stroke:#40454a;stroke-width:2}
+.pose-end{fill:white;stroke:#9aa0a6;stroke-width:2}
+.pose-camera{fill:#2267b5;stroke:white;stroke-width:1}
+.pose-coordinates,.pose-rotation{display:block;font-size:11px;font-variant-numeric:tabular-nums;color:#565b60;line-height:1.5;white-space:normal}
+@media(max-width:650px){.pair--four{gap:12px}.pair--four figcaption{font-size:13px}.pair--four .comparison-frames{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
+.video-placeholder{display:flex;align-items:center;justify-content:center;aspect-ratio:7/4;background:#f5f5f5;border:1px solid #d9dce0;color:#999;font-size:24px}
+
+/* Shared input conditions occupy the first column of each dynamic example. */
+.pair--with-context{grid-template-columns:260px repeat(var(--model-count,4),minmax(260px,1fr));align-items:start;overflow-x:auto;padding-bottom:8px}
+.case-context{min-width:0;padding:0 10px 0 0}
+.context-title{font-size:14px;font-weight:600;line-height:1.4;margin:0 0 10px}
+.context-prompt{font-size:12px;line-height:1.5;margin:0 0 12px;overflow-wrap:anywhere}
+.context-prompt p{margin:0}
+.context-prompt-label{display:block;font-size:11px;line-height:1.4;margin-bottom:4px}
+.case-context .camera-pose{margin-top:16px}
+.case-context .pose-heading{font-size:13px;font-weight:600;line-height:1.4;margin:0}
+.pose-origin-axis{stroke:#b9bdc2;stroke-width:1}
+.pose-models{display:grid;gap:5px;margin-top:3px}
+.pose-model-state{display:flex;align-items:baseline;justify-content:space-between;gap:6px;font-size:11px;line-height:1.35}
+.pose-model-name{color:var(--pose-color)}
+.pose-model-name::before{content:'';display:inline-block;width:7px;height:7px;border:2px solid var(--pose-color);border-radius:50%;margin-right:5px}
+@media(max-width:650px){.case-context{padding-right:8px}.pair--with-context{grid-template-columns:260px repeat(var(--model-count,4),260px)}}
+
+.case-context .pose-tick,.case-context .pose-axis{font-size:15px}
+
+.pair--solar video{aspect-ratio:7/4}
+
+.additional-comparisons>#solar-comparison-groups>.category{margin:18px 0 0}
+
+/* Keep baseline/memory pairs on separate rows, with shared input conditions. */
+.pair--stacked-models{grid-template-columns:repeat(2,minmax(260px,1fr));row-gap:24px}
+.pair--stacked-models.pair--with-context{grid-template-columns:260px repeat(2,minmax(260px,1fr))}
+.pair--stacked-models>.case-context{grid-column:1;grid-row:1 / span 2}
+.pair--stacked-models>figure[data-model="sana"]{grid-row:1;grid-column:2}
+.pair--stacked-models>figure[data-model="grome"]{grid-row:1;grid-column:3}
+.pair--stacked-models>figure[data-model="solar"]{grid-row:2;grid-column:2}
+.pair--stacked-models>figure[data-model="solarGrome"]{grid-row:2;grid-column:3}
+.model-timeline--unmarked .marked-timeline{height:24px}
+@media(max-width:650px){.pair--stacked-models.pair--with-context{grid-template-columns:260px repeat(2,260px)}}

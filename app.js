@@ -1,4 +1,5 @@
-import { comparisons, nonRigid } from './demos.js';
+import { comparisons, nonRigid, solarComparisons } from './demos.js';
+import { cameraPaths } from './camera-paths.js';
 
 const players = new Set();
 // Load only metadata until playback or a seek is requested.
@@ -55,7 +56,7 @@ function addMoments(parent, moments, seek) {
 function frameStrip(markers,seek,label){
   const strip=element('div','comparison-frames');strip.setAttribute('role','group');strip.setAttribute('aria-label',label+' comparison frames');
   strip.style.setProperty('--frame-count',String(markers.length||1));
-  const names={anchor:'Frame',consistent:'Consistent',inconsistent:'Inconsistent',revisit:'Revisit'};
+  const names={anchor:'Frame',comparison:'Frame',consistent:'Consistent',inconsistent:'Inconsistent',revisit:'Revisit'};
   const previews=markers.map(marker=>{
     const preview=button('',()=>seek(marker.time),'frame-preview marker-'+marker.state);
     preview.title=names[marker.state]+' · '+marker.time+' s';
@@ -65,10 +66,123 @@ function frameStrip(markers,seek,label){
     return {marker,preview};
   });return {strip,previews};
 }
+// Express each camera transform in its initial camera frame, then align translation scales.
+function relativeCamera(camera) {
+  const first=camera.poses[0];
+  const poses=camera.poses.map(p=>{
+    const relative=new Array(16).fill(0);relative[15]=1;
+    for(let row=0;row<3;row++){
+      for(let col=0;col<3;col++)for(let k=0;k<3;k++)relative[row*4+col]+=first[k*4+row]*p[k*4+col];
+      for(let k=0;k<3;k++)relative[row*4+3]+=first[k*4+row]*(p[k*4+3]-first[k*4+3]);
+    }
+    return relative;
+  });
+  const distance=Math.max(...poses.map(p=>Math.hypot(p[3],p[7],p[11])))||1;
+  for(const p of poses)for(const index of [3,7,11])p[index]/=distance;
+  return {fps:camera.fps,poses};
+}
+const relativeCameraPaths=Object.fromEntries(Object.entries(cameraPaths).map(([key,camera])=>[key,relativeCamera(camera)]));
+const relativeSamples=Object.values(relativeCameraPaths).flatMap(camera=>camera.poses);
+const sharedPoseBounds={
+  x:[Math.floor((Math.min(...relativeSamples.map(p=>p[3]))-.04)*10)/10,Math.ceil((Math.max(...relativeSamples.map(p=>p[3]))+.04)*10)/10],
+  z:[Math.floor((Math.min(...relativeSamples.map(p=>p[11]))-.04)*10)/10,Math.ceil((Math.max(...relativeSamples.map(p=>p[11]))+.04)*10)/10]
+};
+function cameraYaw(camera) {
+  let previous=0;
+  return camera.poses.map((p,index)=>{
+    let yaw=Math.atan2(p[2],p[10])*180/Math.PI;
+    if(index){while(yaw-previous>180)yaw-=360;while(yaw-previous< -180)yaw+=360}
+    previous=yaw;return yaw;
+  });
+}
+const relativeCameraYaws=Object.fromEntries(Object.entries(relativeCameraPaths).map(([key,camera])=>[key,cameraYaw(camera)]));
+const allCameraYaws=Object.values(relativeCameraYaws).flat();
+const sharedYawBounds=[Math.floor((Math.min(...allCameraYaws)-5)/10)*10,Math.ceil((Math.max(...allCameraYaws)+5)/10)*10];
+const sharedCameraTime=Math.ceil(Math.max(...Object.values(relativeCameraPaths).map(camera=>camera.poses.length/camera.fps))/5)*5;
+function cameraContext(item,definitions) {
+  const entries=definitions.filter(def=>item.conditions?.[def.key]);
+  if(!entries.length)return null;
+  const root=element('aside','case-context');root.setAttribute('aria-label',item.title+': prompts and relative camera poses');
+  root.append(element('h5','context-title','Prompt'));
+  const prompts=new Map();
+  if(item.displayPrompt)prompts.set(item.displayPrompt,[]);
+  else for(const def of entries){const value=item.conditions[def.key].prompt;if(!prompts.has(value))prompts.set(value,[]);prompts.get(value).push(def.label)}
+  for(const [prompt,labels] of prompts){
+    const block=element('div','context-prompt');
+    if(prompts.size>1)block.append(element('strong','context-prompt-label',labels.join(' / ')));
+    block.append(element('p','',prompt));root.append(block);
+  }
+  const poseEntries=entries.filter(def=>relativeCameraPaths[item.conditions[def.key].camera]);
+  if(!poseEntries.length)return {root,update(){}};
+  const rotationOnly=poseEntries.every(def=>relativeCameraPaths[item.conditions[def.key].camera].poses.every(p=>Math.hypot(p[3],p[7],p[11])<1e-6));
+  const poseRoot=element('div','camera-pose');poseRoot.dataset.projection=rotationOnly?'yaw-time':'xz';poseRoot.append(element('h5','pose-heading','Relative camera pose'));
+  poseRoot.title=rotationOnly?'Camera yaw relative to the initial view, in degrees, over video time.':'Relative to each initial camera frame. Translation is normalized by maximum displacement. The same axis limits and scale are used for every example.';
+  const ns='http://www.w3.org/2000/svg';
+  function svgNode(tag,attrs={},text){const node=document.createElementNS(ns,tag);for(const [key,value] of Object.entries(attrs))node.setAttribute(key,String(value));if(text!==undefined)node.textContent=text;return node}
+  const svg=svgNode('svg',{viewBox:'0 0 400 280',role:'img','aria-label':item.title+(rotationOnly?': relative camera yaw over time':': normalized relative camera trajectories in the X–Z plane')});
+  svg.append(svgNode('title',{},poseRoot.title));
+  const [minX,maxX]=rotationOnly?[0,sharedCameraTime]:sharedPoseBounds.x,[minZ,maxZ]=rotationOnly?sharedYawBounds:sharedPoseBounds.z;
+  const scale=Math.min(320/(maxX-minX),210/(maxZ-minZ));
+  const scaleX=rotationOnly?320/(maxX-minX):scale,scaleZ=rotationOnly?210/(maxZ-minZ):scale;
+  const offsetX=58+(320-(maxX-minX)*scaleX)/2,offsetZ=14+(210-(maxZ-minZ)*scaleZ)/2;
+  const project=(x,z)=>[offsetX+(x-minX)*scaleX,offsetZ+(maxZ-z)*scaleZ];
+  const projectPose=(camera,id,index)=>rotationOnly?project(index/camera.fps,relativeCameraYaws[id][index]):project(camera.poses[index][3],camera.poses[index][11]);
+  const [left,bottom]=project(minX,minZ),[right,top]=project(maxX,maxZ);
+  const number=n=>Math.abs(n)<.00001?'0':String(Number(n.toFixed(2)));
+  for(let i=0;i<4;i++){
+    const x=minX+(maxX-minX)*i/3,z=minZ+(maxZ-minZ)*i/3;
+    const [px]=project(x,minZ),[,py]=project(minX,z);
+    svg.append(svgNode('line',{x1:px,y1:top,x2:px,y2:bottom,class:'pose-grid'}),svgNode('text',{x:px,y:bottom+18,'text-anchor':'middle',class:'pose-tick'},number(x)));
+    svg.append(svgNode('line',{x1:left,y1:py,x2:right,y2:py,class:'pose-grid'}),svgNode('text',{x:left-9,y:py+4,'text-anchor':'end',class:'pose-tick'},number(z)));
+  }
+  const [originX,originZ]=project(0,0);
+  svg.append(svgNode('line',{x1:left,y1:originZ,x2:right,y2:originZ,class:'pose-origin-axis'}),svgNode('line',{x1:originX,y1:top,x2:originX,y2:bottom,class:'pose-origin-axis'}));
+  svg.append(svgNode('text',{x:220,y:268,'text-anchor':'middle',class:'pose-axis'},rotationOnly?'Time (s)':'X (normalized)'),svgNode('text',{transform:'translate(14 118) rotate(-90)','text-anchor':'middle',class:'pose-axis'},rotationOnly?'Yaw (°)':'Z (normalized)'));
+  const palette={sana:'#2267b5',grome:'#168044',solar:'#a65f17',solarGrome:'#784da5'};
+  const pathData=pts=>pts.map((p,i)=>(i?'L':'M')+p.map(v=>v.toFixed(2)).join(',')).join(' ');
+  for(const def of poseEntries){
+    const id=item.conditions[def.key].camera,camera=relativeCameraPaths[id];
+    const withMemory=def.key==='grome'||def.key==='solarGrome';
+    const path=svgNode('path',{d:pathData(camera.poses.map((p,index)=>projectPose(camera,id,index))),class:'pose-path',stroke:palette[def.key],'stroke-dasharray':withMemory?'7 4':'none','data-camera':id,'data-model':def.key});
+    path.append(svgNode('title',{},def.label));svg.append(path);
+  }
+  const origin=svgNode('circle',{cx:originX,cy:originZ,r:3,class:'pose-start'});origin.append(svgNode('title',{},'Shared initial camera origin'));svg.append(origin);
+  const legend=element('div','pose-models');const states=new Map();const markers=[];
+  for(const [index,def] of poseEntries.entries()){
+    const camera=relativeCameraPaths[item.conditions[def.key].camera],color=palette[def.key];
+    const row=element('div','pose-model-state');row.dataset.model=def.key;row.style.setProperty('--pose-color',color);
+    const name=element('span','pose-model-name',def.label),clock=element('output','pose-time');row.append(name,clock);legend.append(row);
+    const marker=svgNode('g',{'data-model':def.key,'aria-hidden':'true'});
+    const radius=3+index*1.5;marker.append(svgNode('circle',{r:radius,fill:'none',stroke:color,'stroke-width':2}),svgNode('path',{d:`M 0 0 L ${10+index*2} 0 M ${7+index*2} -3 L ${10+index*2} 0 L ${7+index*2} 3`,fill:'none',stroke:color,'stroke-width':1.5}));markers.push(marker);
+    states.set(def.key,{camera,id:item.conditions[def.key].camera,row,clock,marker,previous:-1});
+  }
+  for(const marker of markers.reverse())svg.append(marker);
+  poseRoot.append(svg,legend);root.append(poseRoot);
+  function update(key,seconds){
+    const state=states.get(key);if(!state)return;
+    const index=Math.max(0,Math.min(state.camera.poses.length-1,Math.floor(seconds*state.camera.fps+1e-5)));
+    if(index===state.previous)return;state.previous=index;state.row.dataset.frame=String(index);
+    const pose=state.camera.poses[index],[x,y]=projectPose(state.camera,state.id,index);
+    state.row.dataset.position=[pose[3],pose[7],pose[11]].map(n=>n.toFixed(6)).join(',');
+    state.marker.setAttribute('transform',`translate(${x} ${y}) rotate(${rotationOnly?0:Math.atan2(-pose[10],pose[2])*180/Math.PI})`);
+    state.clock.textContent=(index/state.camera.fps).toFixed(2)+' s';
+  }
+  for(const def of poseEntries)update(def.key,0);
+  return {root,update};
+}
+
 function comparePlayer(item, parent) {
   const root=element('div','compare-player');
   const pair=element('div','pair');
-  const definitions=[{key:'sana',label:'SANA-WM',src:item.sana},{key:'grome',label:'SANA-WM + GROME',src:item.grome}];
+  const definitions=item.models?item.models.map(def=>({...def,src:def.src??item[def.key]})):[{key:'sana',label:'SANA-WM',src:item.sana},{key:'grome',label:'GROME (based on SANA-WM)',src:item.grome}];
+  if(!item.models&&item.solar)definitions.push({key:'solar',label:'Solar-WM',src:item.solar});
+  if(!item.models&&item.solarGrome)definitions.push({key:'solarGrome',label:'GROME (based on Solar-WM)',src:item.solarGrome});
+  if(definitions.length>2)pair.classList.add('pair--four','pair--stacked-models');
+  if(definitions.every(def=>def.key.startsWith('solar')))pair.classList.add('pair--solar');
+  pair.style.setProperty('--model-count',String(definitions.length+(item.solarGromePending?1:0)));
+  const playLabel=definitions.length>2?'Play all':'Play both',pauseLabel=definitions.length>2?'Pause all':'Pause both';
+  const context=cameraContext(item,definitions);
+  if(context){pair.classList.add('pair--with-context');pair.append(context.root)}
   const views=definitions.map(def=>({...def,...videoFigure(def.src,def.label)}));
   const videos=views.map(view=>view.video);
   const controls=element('div','sync-controls');
@@ -80,17 +194,18 @@ function comparePlayer(item, parent) {
   function setVideoTime(video,time){internalSeeks.set(video,time);video.currentTime=time;}
   function stop(){
     synchronized=false;starting=false;buffering=false;generation++;cancelAnimationFrame(raf);
-    videos.forEach(v=>v.pause());play.textContent='Play both';play.disabled=false;
+    videos.forEach(v=>v.pause());play.textContent=playLabel;play.disabled=false;
   }
   const controller={stop};players.add(controller);
   for(const view of views){
     const {video,figure,key,label}=view;
+    figure.dataset.model=key;
     const timeline=element('input','timeline');timeline.type='range';timeline.min='0';timeline.max=String(item.durations?.[key]??item.duration);timeline.step='.01';timeline.value='0';
     timeline.setAttribute('aria-label',`${item.title}: ${label} timeline`);
     const time=element('output','time-output');
     const track=element('div','marked-timeline');
     const markerLayer=element('div','timeline-markers');markerLayer.setAttribute('role','group');markerLayer.setAttribute('aria-label',`${item.title}: ${label} comparison frames`);
-    const names={anchor:'Frame',consistent:'Consistent',inconsistent:'Inconsistent'};
+    const names={anchor:'Frame',comparison:'Frame',consistent:'Consistent',inconsistent:'Inconsistent'};
     const buttons=(item.markers?.[key]??[]).map(marker=>{
       const mark=button(`${marker.time} s`,()=>seek(marker.time),`timeline-marker marker-${marker.state}`);
       mark.title=`${names[marker.state]} · ${marker.time} s`;
@@ -99,13 +214,15 @@ function comparePlayer(item, parent) {
     });
     track.append(timeline,markerLayer);
     const {strip,previews}=frameStrip(item.frames?.[key]??item.markers?.[key]??[],time=>seek(time),item.title+': '+label);
-    const panel=element('div','model-timeline');panel.append(track,time,strip);figure.append(panel);pair.append(figure);
+    const panel=element('div','model-timeline');panel.append(track,time);if(previews.length)panel.append(strip);else panel.classList.add('model-timeline--unmarked');figure.append(panel);
+    pair.append(figure);
     let pending=null,seekGeneration=0,resumeAfterSeek=false;
     function update(){
       const duration=Number.isFinite(video.duration)?video.duration:(item.durations?.[key]??item.duration);
       const position=pending??video.currentTime;
       timeline.max=String(duration);timeline.value=String(position);timeline.setAttribute('aria-valuetext',formatTime(position));
       time.textContent=`${formatTime(position)} / ${formatTime(duration)}`;
+      context?.update(key,position);
       for(const {marker,mark} of buttons){
         mark.hidden=marker.time>=duration;
         const ratio=marker.time/duration;
@@ -113,7 +230,7 @@ function comparePlayer(item, parent) {
         mark.classList.toggle('active',Math.abs(position-marker.time)<.12);
       }
       for(const {marker,preview} of previews)preview.classList.toggle('active',Math.abs(position-marker.time)<.12);
-      if(videos.every(v=>Number.isFinite(v.duration))&&Math.abs(videos[0].duration-videos[1].duration)>.1)note.textContent=`Play both: ${sharedDuration().toFixed(2)} s shared duration.`;
+      if(videos.every(v=>Number.isFinite(v.duration))&&Math.max(...videos.map(v=>v.duration))-sharedDuration()>.1)note.textContent=`${playLabel}: ${sharedDuration().toFixed(2)} s shared duration.`;
     }
     async function seek(t,resume=false){
       stop();const run=++seekGeneration;pending=t;update();status.textContent='';status.classList.remove('error');
@@ -147,11 +264,16 @@ function comparePlayer(item, parent) {
     video.addEventListener('error',()=>{stop();status.textContent='This video could not be loaded. Please retry.';status.classList.add('error')});
     view.update=update;update();
   }
+  if(item.solarGromePending){
+    const pending=element('figure','model-pending');
+    const blank=element('div','video-placeholder','—');blank.setAttribute('role','img');blank.setAttribute('aria-label','GROME based on Solar-WM video not provided');
+    pending.append(element('figcaption','','GROME (based on Solar-WM)'),blank);pair.append(pending);
+  }
   function tick(){
     if(!synchronized)return;
-    const [master,follower]=videos;
+    const [master,...followers]=videos;
     if(master.currentTime>=sharedDuration()-.045){stop();return}
-    if(!buffering&&follower.readyState>=3&&Math.abs(master.currentTime-follower.currentTime)>.12)setVideoTime(follower,master.currentTime);
+    if(!buffering)for(const follower of followers)if(follower.readyState>=3&&Math.abs(master.currentTime-follower.currentTime)>.12)setVideoTime(follower,master.currentTime);
     views.forEach(view=>view.update());raf=requestAnimationFrame(tick);
   }
   async function start(){
@@ -164,11 +286,11 @@ function comparePlayer(item, parent) {
       videos.forEach(v=>{setVideoTime(v,position);v.playbackRate=Number(rate.value)});
       await Promise.all(videos.map(v=>v.play()));
       if(run!==generation){videos.forEach(v=>v.pause());return}
-      synchronized=true;starting=false;play.disabled=false;play.textContent='Pause both';tick();
+      synchronized=true;starting=false;play.disabled=false;play.textContent=pauseLabel;tick();
     }catch{if(run!==generation)return;stop();status.textContent='Playback could not start. Please retry.';status.classList.add('error')}
   }
-  const play=button('Play both',start);
-  const restart=button('Restart both',async()=>{
+  const play=button(playLabel,start);
+  const restart=button(definitions.length>2?'Restart all':'Restart both',async()=>{
     stop();status.textContent='';try{await Promise.all(videos.map(loadMetadata));videos.forEach(v=>setVideoTime(v,0));views.forEach(view=>view.update())}catch{status.textContent='Unable to load this video. Please retry.'}
   });
   const rate=document.createElement('select');rate.setAttribute('aria-label',`${item.title}: playback speed`);
@@ -276,5 +398,10 @@ function render(groups,target,paired) {
   }
 }
 render(comparisons,document.querySelector('#comparison-groups'),true);
+const additionalSolar=element('section','category additional-comparisons');additionalSolar.id='solar-wm';
+const additionalSolarTitle=element('h3','','Additional Solar-WM vs GROME (based on Solar-WM)');additionalSolarTitle.id='solar-comparison-title';additionalSolar.setAttribute('aria-labelledby',additionalSolarTitle.id);
+const additionalSolarGroups=element('div');additionalSolarGroups.id='solar-comparison-groups';additionalSolar.append(additionalSolarTitle,additionalSolarGroups);
+document.querySelector('#entity-consistency').after(additionalSolar);
+render(solarComparisons,additionalSolarGroups,true);
 render(nonRigid,document.querySelector('#non-rigid-groups'),false);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)for(const player of players)player.stop()});
